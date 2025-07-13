@@ -11,7 +11,7 @@ class Admin extends Model
 
     protected $table = 'admin'; // Nama tabel 'admin'
     protected $fillable = [
-        'user_id',
+        'user_id', // Ini penting
         'nama',
         'tanggal_lahir',
         'kelamin',
@@ -19,7 +19,8 @@ class Admin extends Model
         'nomor_telepon',
         'foto_profil',
     ];
-    protected $guarded = []; // Ini berarti tidak ada kolom yang dilindungi dari mass assignment
+    // protected $guarded = []; // Jika Anda menggunakan $fillable, $guarded tidak diperlukan atau bisa menjadi []
+
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
