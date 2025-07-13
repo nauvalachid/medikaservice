@@ -6,60 +6,42 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class KeluhanRequest extends FormRequest
 {
-    /**
-     * Tentukan apakah pengguna diizinkan untuk melakukan request ini.
-     *
-     * @return bool
-     */
     public function authorize(): bool
     {
-        return true; // Anda bisa menambahkan logika otorisasi di sini jika perlu
+        // Sesuaikan otorisasi. Misalnya, hanya admin yang bisa menggunakan request ini untuk store manual.
+        // return auth()->check() && auth()->user()->role === 'admin';
+        return true;
     }
 
-    /**
-     * Mendefinisikan aturan validasi untuk request ini.
-     *
-     * @return array<string, mixed>
-     */
     public function rules(): array
     {
         return [
-            'patient_id' => 'required|exists:pendaftaran,patient_id',  // Validasi bahwa patient_id ada di tabel pendaftaran
-            'keluhan' => 'required|string|max:255',      // Keluhan harus berupa string dan maksimal 255 karakter
-            'durasi' => 'required|integer|min:1',        // Durasi harus berupa angka dan lebih dari 0
+            // Jika ini digunakan untuk manual entry oleh admin, patient_id harus valid di tabel pasien
+            'patient_id' => 'required|exists:pasien,id', // <<< UBAH: validasi ke tabel 'pasiens' dan kolom 'id'
+            'keluhan' => 'required|string|max:255',
+            'diagnosis' => 'nullable|string|max:255',
         ];
     }
 
-    /**
-     * Tentukan pesan error untuk aturan validasi.
-     *
-     * @return array<string, string>
-     */
     public function messages(): array
     {
         return [
             'patient_id.required' => 'Patient ID harus diisi.',
-            'patient_id.exists' => 'Patient ID tidak ditemukan di tabel pendaftaran.',
+            'patient_id.exists' => 'Patient ID tidak ditemukan di tabel pasien.', // <<< UBAH PESAN
             'keluhan.required' => 'Keluhan harus diisi.',
             'keluhan.string' => 'Keluhan harus berupa teks.',
             'keluhan.max' => 'Keluhan tidak boleh lebih dari 255 karakter.',
-            'durasi.required' => 'Durasi harus diisi.',
-            'durasi.integer' => 'Durasi harus berupa angka.',
-            'durasi.min' => 'Durasi harus lebih dari 0.',
+            'diagnosis.string' => 'Diagnosis harus berupa teks.',
+            'diagnosis.max' => 'Diagnosis tidak boleh lebih dari 255 karakter.',
         ];
     }
 
-    /**
-     * Tentukan atribut khusus untuk pesan validasi (optional).
-     *
-     * @return array<string, string>
-     */
     public function attributes(): array
     {
         return [
             'patient_id' => 'Patient ID',
             'keluhan' => 'Keluhan',
-            'durasi' => 'Durasi',
+            'diagnosis' => 'Diagnosis',
         ];
     }
 }
