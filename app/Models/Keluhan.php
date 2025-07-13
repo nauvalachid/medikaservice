@@ -9,25 +9,29 @@ class Keluhan extends Model
 {
     use HasFactory;
 
-    protected $table = 'keluhan';
+    protected $table = 'keluhan'; // Sesuai dengan konfirmasi Anda
 
     // Tentukan kolom yang boleh diisi massal
     protected $fillable = [
-        'pasien_id', // Relasi dengan pasien
+        'patient_id', // <<< INI YANG BENAR, Gantikan 'pasien_id'
+        'diagnosis',
         'keluhan',
-        'durasi',
-        'patient_id', // Relasi dengan pendaftaran
+        // 'pendaftaran_id', // Tambahkan jika Anda menambahkan kolom ini di DB untuk melacak asal pendaftaran
     ];
 
     // Relasi: Setiap keluhan memiliki satu pasien
     public function pasien()
     {
-        return $this->belongsTo(Pasien::class, 'pasien_id');  // Relasi dengan pasien
+        return $this->belongsTo(Pasien::class, 'patient_id'); // <<< INI JUGA HARUS 'patient_id'
     }
 
-    // Relasi ke tabel pendaftaran
+    // Relasi ke tabel pendaftaran (Sangat disarankan untuk dihapus)
+    // Kecuali Anda menambahkan kolom 'pendaftaran_id' ke tabel 'keluhan' di database.
+    // Jika Anda TIDAK menambahkan kolom pendaftaran_id, relasi ini salah karena patient_id merujuk ke Pasien, bukan Pendaftaran.
+    /*
     public function pendaftaran()
     {
-        return $this->belongsTo(Pendaftaran::class, 'patient_id');  // Relasi dengan pendaftaran
+        return $this->belongsTo(Pendaftaran::class, 'patient_id'); // Kesalahan logis jika patient_id merujuk ke pasien
     }
+    */
 }
