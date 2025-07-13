@@ -3,10 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Admin;
-use App\Http\Requests\AdminRequest; // Menggunakan AdminRequest untuk validasi
+use App\Http\Requests\AdminRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth; // Penting: Tambahkan ini
 
 class AdminController extends Controller
 {
@@ -17,34 +18,95 @@ class AdminController extends Controller
      * @return \Illuminate\Http\Response
      */
     public function store(AdminRequest $request)
-    {
-        // Validasi data sudah dilakukan oleh AdminRequest
-        try {
-            $data = $request->validated();
+{
+    try {
+        $data = $request->validated();
 
-            // Menyimpan foto profil jika ada
-            if ($request->hasFile('foto_profil')) {
-                $file = $request->file('foto_profil');
-                $path = $file->store('public/foto_profil'); // Menyimpan gambar di folder storage/app/public/foto_profil
-                $data['foto_profil'] = $path; // Menambahkan path gambar ke dalam data
-            }
+        // Pastikan user_id diambil dari user yang terautentikasi
+        $data['user_id'] = Auth::id(); // Ambil ID user yang sedang login
 
-            // Menyimpan data admin
-            $admin = Admin::create($data);
-            
+        // Cek apakah sudah ada profil admin untuk user yang terautentikasi
+        $existingAdmin = Admin::where('user_id', $data['user_id'])->first();
+
+        if ($existingAdmin) {
             return response()->json([
-                'message' => 'Admin data has been created successfully',
-                'data' => $admin
-            ], 201);  // Status 201 Created
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error: ' . $e->getMessage()
-            ], 500);  // Internal Server Error
+                'message' => 'Anda sudah memiliki profil admin.'
+            ], 400); // Kembalikan respons 400 jika sudah ada profil admin
         }
+
+        // Menyimpan foto profil jika ada
+        if ($request->hasFile('foto_profil')) {
+            $file = $request->file('foto_profil');
+            $path = $file->store('public/foto_profil');
+            $data['foto_profil'] = $path;
+        }
+
+        // Menyimpan data admin
+        $admin = Admin::create($data);
+        
+        return response()->json([
+            'message' => 'Admin data has been created successfully',
+            'data' => $admin
+        ], 201);
+    } catch (\Exception $e) {
+        Log::error('Error creating admin profile: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+        return response()->json([
+            'message' => 'Error: ' . $e->getMessage()
+        ], 500);
     }
+}
+
+
+    /**
+     * Menampilkan data admin berdasarkan user yang terautentikasi.
+     * Ini adalah endpoint untuk 'profil saya'.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function getAuthenticatedAdminProfile()
+{
+    try {
+        $userId = Auth::id();
+        // Log 1: Periksa apakah Auth::id() mendapatkan ID pengguna
+        Log::info('GET AUTHENTICATED ADMIN PROFILE: User ID from Auth::id() is ' . ($userId ?? 'NULL'));
+
+        if (!$userId) { // Ini seharusnya tidak terjadi jika tidak ada "Unauthenticated"
+            Log::warning('GET AUTHENTICATED ADMIN PROFILE: User is not authenticated.');
+            return response()->json([
+                'message' => 'User not authenticated.'
+            ], 401);
+        }
+
+        // Log 2: Periksa query yang akan dijalankan
+        Log::info('GET AUTHENTICATED ADMIN PROFILE: Attempting to find Admin where user_id = ' . $userId);
+        
+        $admin = Admin::where('user_id', $userId)->first();
+
+        if (!$admin) {
+            // Log 3: Jika admin tidak ditemukan
+            Log::warning('GET AUTHENTICATED ADMIN PROFILE: Admin profile NOT found for user_id ' . $userId);
+            return response()->json([
+                'message' => 'Admin profile not found for this user.'
+            ], 404); // Not Found
+        }
+
+        // Log 4: Jika admin ditemukan
+        Log::info('GET AUTHENTICATED ADMIN PROFILE: Admin profile FOUND for user_id ' . $userId, $admin->toArray());
+        return response()->json([
+            'message' => 'Admin profile fetched successfully',
+            'data' => $admin
+        ], 200); // OK
+    } catch (\Exception $e) {
+        Log::error('GET AUTHENTICATED ADMIN PROFILE ERROR: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+        return response()->json([
+            'message' => 'Error: ' . $e->getMessage()
+        ], 500);
+    }
+}
 
     /**
      * Menampilkan data admin berdasarkan ID.
+     * (Pertahankan ini jika Anda masih memerlukan endpoint untuk ID spesifik)
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
@@ -56,103 +118,68 @@ class AdminController extends Controller
             return response()->json([
                 'message' => 'Admin data fetched successfully',
                 'data' => $admin
-            ], 200);  // Status 200 OK
+            ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Admin not found'
-            ], 404);  // Not Found
+            ], 404);
         }
     }
 
     /**
      * Memperbarui data admin berdasarkan ID.
      *
-     * @param  \App\Http\Requests\AdminRequest  $request
+     * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-   /**
-     * Memperbarui data admin berdasarkan ID.
-     *
-     * @param  \Illuminate\Http\Request  $request // UBAH TIPE HINT MENJADI Illuminate\Http\Request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, $id) // <-- UBAH DI SINI
-    {
-        // dd($request->all()); // Biarkan ini dulu untuk melihat apakah ada perubahan
+    public function update(Request $request, $id)
+{
+    try {
+        $userId = Auth::id(); // Mendapatkan user_id dari user yang sedang login
 
-        try {
-            // 1. Ambil data admin sebelum update
-            $admin = Admin::findOrFail($id);
-            Log::info('Admin data BEFORE update:', $admin->toArray());
+        // Pastikan admin yang login hanya dapat mengupdate profilnya sendiri
+        $admin = Admin::where('user_id', $userId)->first(); // Cukup mencari admin berdasarkan user_id
 
-            // 2. Dapatkan data dari request secara langsung
-            // KARENA validated() GAGAL, KITA AKAN AMBIL LANGSUNG DARI REQUEST
-            // Kita akan mencoba semua input kecuali _method jika ada
-            $data = $request->except('_method'); // Ambil semua input kecuali _method
-
-            // Ini adalah VALIDASI MANUAL yang harus Anda tambahkan
-            // jika Anda tidak menggunakan AdminRequest::validated()
-            // Contoh validasi dasar:
-            // if (isset($data['nama']) && !is_string($data['nama'])) {
-            //     throw new \Exception("Nama harus berupa teks.");
-            // }
-            // if (isset($data['nama']) && empty($data['nama'])) {
-            //     throw new \Exception("Nama harus diisi.");
-            // }
-            // DAN SETERUSNYA UNTUK SEMUA FIELD YANG ANDA BUTUHKAN
-
-            Log::info('Raw data from request:', $data); // Log data yang diambil langsung
-
-            // 3. Tangani upload foto profil jika ada
-            // Penting: $request->hasFile() dan $request->file() tetap berfungsi
-            if ($request->hasFile('foto_profil')) {
-                // Hapus foto lama jika ada
-                if ($admin->foto_profil) {
-                    Storage::delete($admin->foto_profil);
-                    Log::info('Old foto_profil deleted:', ['path' => $admin->foto_profil]);
-                }
-
-                $file = $request->file('foto_profil');
-                $path = $file->store('public/foto_profil');
-                $data['foto_profil'] = $path;
-                Log::info('New foto_profil uploaded:', ['path' => $path]);
-            } else {
-                // Jika foto_profil tidak diupload dan ada di $data, hapus dari $data
-                // agar tidak mengupdate foto_profil menjadi null jika tidak diinginkan
-                // jika foto_profil bersifat opsional dan bisa null, ini tidak diperlukan
-                // unset($data['foto_profil']);
-            }
-
-
-            // 4. Lakukan update data admin
-            $updateSuccess = $admin->update($data);
-            Log::info('Update operation result:', ['success' => $updateSuccess]);
-
-            // 5. Refresh objek admin untuk mendapatkan data terbaru dari database
-            $admin->refresh();
-            Log::info('Admin data AFTER refresh:', $admin->toArray());
-
-            // Jika update berhasil, kembalikan respons sukses
-            if ($updateSuccess) {
-                return response()->json([
-                    'message' => 'Admin data updated successfully',
-                    'data' => $admin
-                ], 200);
-            } else {
-                return response()->json([
-                    'message' => 'Failed to update admin data, no changes detected or internal issue.'
-                ], 500);
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Error updating admin data:', ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+        if (!$admin || $admin->id != $id) {
             return response()->json([
-                'message' => 'Error: ' . $e->getMessage()
-            ], 500);
+                'message' => 'Admin profile not found or unauthorized action.'
+            ], 404); // Status 404: Not Found or Unauthorized
         }
+
+        // Melanjutkan proses update seperti sebelumnya
+        $data = $request->except('_method');
+        if ($request->hasFile('foto_profil')) {
+            if ($admin->foto_profil) {
+                Storage::delete($admin->foto_profil);
+            }
+            $file = $request->file('foto_profil');
+            $path = $file->store('public/foto_profil');
+            $data['foto_profil'] = $path;
+        }
+
+        $updateSuccess = $admin->update($data);
+        $admin->refresh();
+
+        if ($updateSuccess) {
+            return response()->json([
+                'message' => 'Admin data updated successfully',
+                'data' => $admin
+            ], 200); // Status 200: OK
+        } else {
+            return response()->json([
+                'message' => 'Failed to update admin data.'
+            ], 500); // Status 500: Internal Server Error
+        }
+    } catch (\Exception $e) {
+        Log::error('Error updating admin data:', ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+        return response()->json([
+            'message' => 'Error: ' . $e->getMessage()
+        ], 500); // Status 500: Internal Server Error
     }
+}
+
+
 
     /**
      * Menghapus data admin berdasarkan ID.
@@ -165,7 +192,6 @@ class AdminController extends Controller
         try {
             $admin = Admin::findOrFail($id);
 
-            // Hapus foto profil jika ada
             if ($admin->foto_profil) {
                 Storage::delete($admin->foto_profil);
             }
@@ -174,11 +200,11 @@ class AdminController extends Controller
 
             return response()->json([
                 'message' => 'Admin data deleted successfully'
-            ], 200);  // Status 200 OK
+            ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error: ' . $e->getMessage()
-            ], 500);  // Internal Server Error
+            ], 500);
         }
     }
 }
