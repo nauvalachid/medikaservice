@@ -6,40 +6,26 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class User extends Authenticatable implements JWTSubject
 {
     use HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'name',
         'email',
         'password',
         'role',
-        'created_at',
-        'updated_at',
+        // 'created_at', // Tidak perlu di fillable, Laravel mengelola ini otomatis
+        // 'updated_at', // Tidak perlu di fillable, Laravel mengelola ini otomatis
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * The attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
@@ -57,34 +43,12 @@ class User extends Authenticatable implements JWTSubject
         ];
     }
 
-    /**
-     * Accessor for role.
-     *
-     * @return string
-     */
     public function getRoleAttribute($value)
     {
-        // This can be used to return the role in a user-friendly manner.
         return ucfirst($value);
     }
-
-    /**
-     * Get the user's created at timestamp.
-     *
-     * @return \Illuminate\Database\Eloquent\Casts\Attribute
-     */
-    public function createdAt()
+    public function pasienDetail()
     {
-        return $this->created_at;
-    }
-
-    /**
-     * Get the user's updated at timestamp.
-     *
-     * @return \Illuminate\Database\Eloquent\Casts\Attribute
-     */
-    public function updatedAt()
-    {
-        return $this->updated_at;
+        return $this->hasOne(Pasien::class, 'user_id', 'id');
     }
 }
